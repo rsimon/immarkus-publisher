@@ -26,14 +26,19 @@ export interface LocalImageNode {
   name: string;
   /** File extension: 'jpg' | 'jpeg' | 'png' | 'tif' | 'tiff' */
   ext: string;
+  /**
+   * Absolute path to the sidecar annotation file (<stem>.json),
+   * if IMMARKUS wrote any annotations for this image.
+   */
+  annotationsPath: string | null;
 }
 
 export interface IIIFImportNode {
   type: 'iiifImport';
   /**
-   * Absolute path to the _iiif.<id>.json file IMMARKUS wrote when
-   * the manifest was imported. Contains the original manifest JSON
-   * (or a reference to it).
+   * Absolute path to the _iiif.<id>.json descriptor file IMMARKUS wrote
+   * when the manifest was imported. Contains the manifest URI, canvas list,
+   * and metadata — NOT the full manifest JSON.
    */
   manifestCachePath: string;
   /**
@@ -43,6 +48,10 @@ export interface IIIFImportNode {
   annotationsPath: string | null;
   /** The <id> portion of the filename (used to key everything) */
   id: string;
+  /** Display name read from the descriptor file */
+  name: string;
+  /** Original manifest URI from the descriptor file */
+  sourceUri: string;
 }
 
 export type SourceNode = FolderNode | LocalImageNode | IIIFImportNode;

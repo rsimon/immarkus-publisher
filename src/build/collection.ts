@@ -51,7 +51,8 @@ export async function buildCollection(
 
     } else if (child.type === 'iiifImport') {
       const url = await buildIIIFManifest(child, config);
-      itemUrls.push({ url, type: 'Manifest', label: `[iiif:${child.id}]` });
+      itemUrls.push({ url, type: 'Manifest', label: child.name });
+      console.log(`  ✓ Manifest (IIIF import): ${child.name}`);
     }
   }
 

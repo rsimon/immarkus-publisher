@@ -29,6 +29,8 @@ export async function scanFolder(dirPath: string): Promise<FolderNode> {
   // pair them with their annotation sidecars.
   const iiifManifestFiles = new Map<string, string>(); // id → absolute path
   const iiifAnnotationFiles = new Map<string, string>(); // id → absolute path
+  // Annotation sidecars for local images: <stem>.json
+  const imageAnnotationFiles = new Map<string, string>(); // stem → absolute path
 
   for (const entry of entries) {
     if (!entry.isFile()) continue;
@@ -47,6 +49,14 @@ export async function scanFolder(dirPath: string): Promise<FolderNode> {
         .slice(IIIF_PREFIX.length + 1) // strip "_iiif."
         .slice(0, -'.json'.length);
       iiifManifestFiles.set(id, join(dirPath, fname));
+    } else if (
+      !fname.startsWith(IMMARKUS_PREFIX) &&
+      !fname.startsWith(IIIF_PREFIX) &&
+      fname.endsWith('.json')
+    ) {
+      // <stem>.json — potential local image annotation sidecar
+      const stem = fname.slice(0, -'.json'.length);
+      imageAnnotationFiles.set(stem, join(dirPath, fname));
     }
   }
 
@@ -76,11 +86,13 @@ export async function scanFolder(dirPath: string): Promise<FolderNode> {
     const ext = extname(fname).toLowerCase();
 
     if (IMAGE_EXTENSIONS.has(ext)) {
+      const stem = basename(fname, ext);
       const node: LocalImageNode = {
         type: 'localImage',
         path: fullPath,
-        name: basename(fname, ext),
+        name: stem,
         ext: ext.slice(1), // strip the dot
+        annotationsPath: imageAnnotationFiles.get(stem) ?? null,
       };
       children.push(node);
     }
@@ -89,11 +101,23 @@ export async function scanFolder(dirPath: string): Promise<FolderNode> {
 
   // Add IIIF import nodes — one per _iiif.<id>.json file
   for (const [id, manifestCachePath] of iiifManifestFiles) {
+    let name = `[iiif:${id}]`;
+    let sourceUri = '';
+    try {
+      const raw = await readFile(manifestCachePath, 'utf-8');
+      const descriptor = JSON.parse(raw) as { name?: string; uri?: string };
+      if (descriptor.name) name = descriptor.name;
+      if (descriptor.uri) sourceUri = descriptor.uri;
+    } catch {
+      // Descriptor unreadable — fall back to ID-based label
+    }
     const node: IIIFImportNode = {
       type: 'iiifImport',
       manifestCachePath,
       annotationsPath: iiifAnnotationFiles.get(id) ?? null,
       id,
+      name,
+      sourceUri,
     };
     children.push(node);
   }
@@ -103,9 +127,7 @@ export async function scanFolder(dirPath: string): Promise<FolderNode> {
     const aIsFolder = a.type === 'folder' ? 0 : 1;
     const bIsFolder = b.type === 'folder' ? 0 : 1;
     if (aIsFolder !== bIsFolder) return aIsFolder - bIsFolder;
-    const aName = 'name' in a ? a.name : a.id;
-    const bName = 'name' in b ? b.name : b.id;
-    return aName.localeCompare(bName);
+    return a.name.localeCompare(b.name);
   });
 
   return { type: 'folder', path: dirPath, name, meta, children };
@@ -124,7 +146,7 @@ export function printTree(node: SourceNode, indent = 0): void {
     console.log(`${pad}🖼  ${node.name}.${node.ext}`);
   } else if (node.type === 'iiifImport') {
     const hasAnnotations = node.annotationsPath ? ' ✎' : '';
-    console.log(`${pad}🌐 [iiif:${node.id}]${hasAnnotations}`);
+    console.log(`${pad}🌐 ${node.name}${hasAnnotations}`);
   }
 }
 
