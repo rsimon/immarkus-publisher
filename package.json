@@ -1,0 +1,27 @@
+{
+  "name": "immarkus-publisher",
+  "version": "0.1.0",
+  "description": "Publish an IMMARKUS work folder as standards-compliant IIIF",
+  "type": "module",
+  "bin": {
+    "immarkus-publisher": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "tsx src/cli.ts",
+    "dev": "tsx watch src/cli.ts"
+  },
+  "dependencies": {
+    "@iiif/builder": "^2.0.1",
+    "@iiif/presentation-3": "^1.0.4",
+    "cozy-iiif": "^0.8.2",
+    "js-yaml": "^4.1.0",
+    "sharp": "^0.34.2"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/node": "^22.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^5.7.3"
+  }
+}

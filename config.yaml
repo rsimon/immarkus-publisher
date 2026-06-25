@@ -1,0 +1,5 @@
+baseUrl: https://example.org/my-iiif-project
+title: Historical Maps & Photos Collection
+sourceDir: /Users/rainer/Downloads/2_Leuven_University_Hall
+outputDir: ./dist
+language: en
