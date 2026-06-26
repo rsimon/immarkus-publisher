@@ -1,5 +1,5 @@
 baseUrl: http://localhost:3000
 title: Historical Maps & Photos Collection
-sourceDir: /Users/rainer/Downloads/2_Leuven_University_Hall
+sourceDir: /Users/rainer/Downloads/1_Map_Annotation_Update/四川_annotation_rev_0608
 outputDir: ./dist
 language: en
