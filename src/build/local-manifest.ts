@@ -10,7 +10,9 @@ import {
   imageFileOutputPath,
   localManifestOutputPath,
 } from '../urls.js';
+import { crosswalkAnnotationBodies } from '../datamodel.js';
 import type { Config } from '../config.js';
+import type { DataModel } from '../datamodel.js';
 import type { LocalImageNode } from '../types.js';
 
 const MIME_TYPES: Record<string, string> = {
@@ -47,7 +49,8 @@ function isShapeAnnotation(a: W3CAnnotation): boolean {
 async function loadAnnotations(
   annotationsPath: string,
   filename: string,
-  canvasUrl: string
+  canvasUrl: string,
+  model: DataModel
 ): Promise<W3CAnnotation[]> {
   const raw = await readFile(annotationsPath, 'utf-8');
   const all: W3CAnnotation[] = JSON.parse(raw);
@@ -55,9 +58,13 @@ async function loadAnnotations(
   return all
     .filter(isShapeAnnotation)
     .map((a) => {
+      // Rewrite target.source from filename to published canvas URL
       const target = a.target as { source: string; selector?: unknown };
-      if (target.source !== filename) return a; // unexpected source, leave as-is
-      return { ...a, target: { ...target, source: canvasUrl } };
+      const retargeted = target.source === filename
+        ? { ...a, target: { ...target, source: canvasUrl } }
+        : a;
+      // Crosswalk IMMARKUS-specific bodies to standard W3C TextualBody
+      return crosswalkAnnotationBodies(retargeted, model) as W3CAnnotation;
     });
 }
 
@@ -71,7 +78,8 @@ async function loadAnnotations(
  */
 export async function buildLocalManifest(
   node: LocalImageNode,
-  config: Config
+  config: Config,
+  model: DataModel
 ): Promise<string> {
   const filename = `${node.name}.${node.ext}`;
   const manifestUrl = localManifestUrl(config, node.path);
@@ -115,7 +123,8 @@ export async function buildLocalManifest(
       const annotations = await loadAnnotations(
         node.annotationsPath,
         filename,
-        canvasUrl
+        canvasUrl,
+        model
       );
 
       if (annotations.length > 0) {

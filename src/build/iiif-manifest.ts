@@ -1,5 +1,7 @@
 import { readFile } from 'fs/promises';
+import { crosswalkAnnotationBodies } from '../datamodel.js';
 import type { Config } from '../config.js';
+import type { DataModel } from '../datamodel.js';
 import type { IIIFImportNode } from '../types.js';
 import { iiifManifestUrl, iiifManifestOutputPath } from '../urls.js';
 import { writeJSON } from '../writer.js';
@@ -52,7 +54,8 @@ function isShapeAnnotation(a: W3CAnnotation): boolean {
  */
 export async function buildIIIFManifest(
   node: IIIFImportNode,
-  config: Config
+  config: Config,
+  model: DataModel
 ): Promise<string> {
   const folderPath = dirname(node.manifestCachePath);
   const publishedManifestUrl = iiifManifestUrl(config, folderPath, node.id);
@@ -121,13 +124,15 @@ export async function buildIIIFManifest(
         const originalCanvasUri = canvasUriMap.get(target.source);
         if (!originalCanvasUri) continue; // unknown canvas, skip
 
-        const rewritten: W3CAnnotation = {
+        const retargeted: W3CAnnotation = {
           ...annotation,
           target: { ...target, source: originalCanvasUri },
         };
 
+        const crosswalked = crosswalkAnnotationBodies(retargeted, model) as W3CAnnotation;
+
         const group = annotationsByCanvas.get(originalCanvasUri) ?? [];
-        group.push(rewritten);
+        group.push(crosswalked);
         annotationsByCanvas.set(originalCanvasUri, group);
       }
     } catch (err) {

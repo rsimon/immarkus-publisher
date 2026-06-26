@@ -9,6 +9,7 @@ import {
 import { buildLocalManifest } from './local-manifest.js';
 import { buildIIIFManifest } from './iiif-manifest.js';
 import type { Config } from '../config.js';
+import type { DataModel } from '../datamodel.js';
 import type { FolderNode } from '../types.js';
 
 /**
@@ -18,12 +19,14 @@ import type { FolderNode } from '../types.js';
  *
  * @param node       The folder node to process
  * @param config     Publisher config
+ * @param model      IMMARKUS data model (for annotation body crosswalk)
  * @param isRoot     True only for the top-level source directory
  * @returns          The URL of the Collection resource written for this folder
  */
 export async function buildCollection(
   node: FolderNode,
   config: Config,
+  model: DataModel,
   isRoot = false
 ): Promise<string> {
   const collUrl = isRoot
@@ -40,17 +43,17 @@ export async function buildCollection(
   for (const child of node.children) {
     if (child.type === 'folder') {
       // Recurse — this writes the sub-collection and returns its URL
-      const url = await buildCollection(child, config, false);
+      const url = await buildCollection(child, config, model, false);
       itemUrls.push({ url, type: 'Collection', label: child.name });
       console.log(`  ✓ Collection: ${child.name}/`);
 
     } else if (child.type === 'localImage') {
-      const url = await buildLocalManifest(child, config);
+      const url = await buildLocalManifest(child, config, model);
       itemUrls.push({ url, type: 'Manifest', label: child.name });
       console.log(`  ✓ Manifest (local): ${child.name}.${child.ext}`);
 
     } else if (child.type === 'iiifImport') {
-      const url = await buildIIIFManifest(child, config);
+      const url = await buildIIIFManifest(child, config, model);
       itemUrls.push({ url, type: 'Manifest', label: child.name });
       console.log(`  ✓ Manifest (IIIF import): ${child.name}`);
     }

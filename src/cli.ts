@@ -1,6 +1,7 @@
 import { resolve } from 'path';
 import { rm } from 'fs/promises';
 import { loadConfig } from './config.js';
+import { loadDataModel } from './datamodel.js';
 import { scanFolder, printTree, countLeaves } from './scan.js';
 import { buildCollection } from './build/collection.js';
 import { buildViewerPage } from './build/viewer.js';
@@ -52,10 +53,16 @@ async function main() {
     // Ignore — may not exist
   }
 
+  // Load data model (for annotation body crosswalk)
+  const model = await loadDataModel(config.sourceDir);
+  if (model.entityTypes.length > 0) {
+    console.log(`Data model: ${model.entityTypes.length} entity type(s) loaded.\n`);
+  }
+
   // Build everything
   console.log('Building IIIF resources...');
   try {
-    const rootCollectionUrl = await buildCollection(tree, config, true);
+    const rootCollectionUrl = await buildCollection(tree, config, model, true);
     console.log('');
     console.log('✓ Done!');
     console.log('');
