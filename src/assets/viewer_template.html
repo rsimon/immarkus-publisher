@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>__TITLE__</title>
+  <script src="https://unpkg.com/triiiceratops/dist/triiiceratops-element.iife.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, sans-serif;
+      background: #1c1c1e;
+      color: #e5e5e7;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      background: #111;
+      border-bottom: 1px solid #333;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    header h1 { font-size: 0.95rem; font-weight: 500; }
+    header a {
+      margin-left: auto;
+      font-size: 0.75rem;
+      color: #888;
+      text-decoration: none;
+    }
+    header a:hover { color: #ccc; }
+
+    .body {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ───────────────────────────────────────────── */
+    #sidebar {
+      width: 260px;
+      flex-shrink: 0;
+      background: #2c2c2e;
+      border-right: 1px solid #3a3a3c;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+
+    .tree-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      cursor: pointer;
+      font-size: 0.82rem;
+      line-height: 1.3;
+      border-left: 3px solid transparent;
+      user-select: none;
+    }
+    .tree-item:hover { background: #3a3a3c; }
+    .tree-item.active {
+      background: #3a3a3c;
+      border-left-color: #0a84ff;
+      color: #fff;
+    }
+    .tree-item .icon { flex-shrink: 0; font-size: 0.9em; }
+    .tree-item .label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .tree-collection { font-weight: 600; color: #aaa; }
+    .tree-collection .toggle { font-size: 0.7em; color: #666; }
+    .tree-children { display: none; }
+    .tree-children.open { display: block; }
+    .tree-children .tree-item { padding-left: 24px; }
+    .tree-children .tree-children .tree-item { padding-left: 36px; }
+    .tree-children .tree-children .tree-children .tree-item { padding-left: 48px; }
+
+    #loading-msg {
+      padding: 16px 12px;
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    /* ── Viewer ────────────────────────────────────────────── */
+    #viewer-pane {
+      flex: 1;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #placeholder {
+      text-align: center;
+      color: #555;
+      font-size: 0.9rem;
+    }
+    #placeholder p { margin-top: 8px; font-size: 0.75rem; color: #444; }
+
+    triiiceratops-viewer {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>__TITLE__</h1>
+    <a href="__COLLECTION_URL__" target="_blank">collection.json ↗</a>
+  </header>
+
+  <div class="body">
+    <nav id="sidebar">
+      <div id="loading-msg">Loading collection…</div>
+    </nav>
+
+    <div id="viewer-pane">
+      <div id="placeholder">
+        ← Select a manifest from the sidebar
+        <p>Powered by Triiiceratops + OpenSeadragon</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const ROOT_COLLECTION = '__COLLECTION_URL__';
+    const sidebar = document.getElementById('sidebar');
+    const viewerPane = document.getElementById('viewer-pane');
+    let activeItem = null;
+
+    async function fetchJSON(url) {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' fetching ' + url);
+      return res.json();
+    }
+
+    function labelOf(item) {
+      if (!item.label) return item.id;
+      const values = Object.values(item.label);
+      if (values.length === 0) return item.id;
+      const first = values[0];
+      return Array.isArray(first) ? first[0] : String(first);
+    }
+
+    function escHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    }
+
+    function renderManifestItem(item) {
+      const el = document.createElement('div');
+      el.className = 'tree-item';
+      el.innerHTML =
+        '<span class="icon">🖼</span>' +
+        '<span class="label">' + escHtml(labelOf(item)) + '</span>';
+      el.addEventListener('click', () => openManifest(item.id, el));
+      return el;
+    }
+
+    function renderCollectionItem(item) {
+      const wrapper = document.createElement('div');
+
+      const header = document.createElement('div');
+      header.className = 'tree-item tree-collection';
+      header.innerHTML =
+        '<span class="icon toggle">▶</span>' +
+        '<span class="icon">📁</span>' +
+        '<span class="label">' + escHtml(labelOf(item)) + '</span>';
+
+      const childContainer = document.createElement('div');
+      childContainer.className = 'tree-children';
+
+      header.addEventListener('click', () => {
+        const isOpen = childContainer.classList.toggle('open');
+        header.querySelector('.toggle').textContent = isOpen ? '▼' : '▶';
+        if (isOpen && childContainer.childElementCount === 0) {
+          loadCollection(item.id, childContainer);
+        }
+      });
+
+      wrapper.appendChild(header);
+      wrapper.appendChild(childContainer);
+      return wrapper;
+    }
+
+    async function loadCollection(url, container) {
+      container.innerHTML = '<div style="padding:6px 12px;font-size:0.75rem;color:#666">Loading…</div>';
+      try {
+        const coll = await fetchJSON(url);
+        container.innerHTML = '';
+        if (!coll.items || coll.items.length === 0) {
+          container.innerHTML = '<div style="padding:6px 12px;font-size:0.75rem;color:#555">(empty)</div>';
+          return;
+        }
+        for (const item of coll.items) {
+          if (item.type === 'Collection') {
+            container.appendChild(renderCollectionItem(item));
+          } else if (item.type === 'Manifest') {
+            container.appendChild(renderManifestItem(item));
+          }
+        }
+      } catch (err) {
+        container.innerHTML = '<div style="padding:6px 12px;font-size:0.75rem;color:#c44">Error loading</div>';
+        console.error('Failed to load collection:', url, err);
+      }
+    }
+
+    function openManifest(manifestUrl, itemEl) {
+      if (activeItem) activeItem.classList.remove('active');
+      activeItem = itemEl;
+      itemEl.classList.add('active');
+
+      viewerPane.innerHTML = '';
+      const viewer = document.createElement('triiiceratops-viewer');
+      viewer.setAttribute('manifest-id', manifestUrl);
+      viewerPane.appendChild(viewer);
+    }
+
+    (async () => {
+      sidebar.innerHTML = '';
+      try {
+        const root = await fetchJSON(ROOT_COLLECTION);
+        if (!root.items || root.items.length === 0) {
+          sidebar.innerHTML = '<div id="loading-msg">Collection is empty.</div>';
+          return;
+        }
+        for (const item of root.items) {
+          if (item.type === 'Collection') {
+            sidebar.appendChild(renderCollectionItem(item));
+          } else if (item.type === 'Manifest') {
+            sidebar.appendChild(renderManifestItem(item));
+          }
+        }
+      } catch (err) {
+        sidebar.innerHTML = '<div id="loading-msg" style="color:#c44">Failed to load collection.<br>' + escHtml(err.message) + '</div>';
+        console.error(err);
+      }
+    })();
+  </script>
+</body>
+</html>

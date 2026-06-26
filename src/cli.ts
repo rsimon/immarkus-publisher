@@ -3,6 +3,7 @@ import { rm } from 'fs/promises';
 import { loadConfig } from './config.js';
 import { scanFolder, printTree, countLeaves } from './scan.js';
 import { buildCollection } from './build/collection.js';
+import { buildViewerPage } from './build/viewer.js';
 
 async function main() {
   const args = process.argv.slice(2);
@@ -59,6 +60,8 @@ async function main() {
     console.log('✓ Done!');
     console.log('');
     console.log(`Root collection: ${rootCollectionUrl}`);
+    await buildViewerPage(config);
+    console.log(`Viewer:          ${config.outputDir}/index.html`);
     console.log(`Output written to: ${config.outputDir}`);
     console.log('');
   } catch (err) {

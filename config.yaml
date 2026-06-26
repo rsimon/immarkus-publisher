@@ -1,4 +1,4 @@
-baseUrl: http://localhost:8080
+baseUrl: http://localhost:3000
 title: Historical Maps & Photos Collection
 sourceDir: /Users/rainer/Downloads/2_Leuven_University_Hall
 outputDir: ./dist
