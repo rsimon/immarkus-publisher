@@ -36,6 +36,19 @@
     }
     header a:hover { color: #ccc; }
 
+    #sidebar-toggle {
+      background: none;
+      border: none;
+      color: #888;
+      font-size: 1.1rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 3px 7px;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+    #sidebar-toggle:hover { color: #ccc; background: #2a2a2c; }
+
     .body {
       display: flex;
       flex: 1;
@@ -49,7 +62,14 @@
       background: #2c2c2e;
       border-right: 1px solid #3a3a3c;
       overflow-y: auto;
+      overflow-x: hidden;
       padding: 8px 0;
+      transition: width 0.2s ease, padding 0.2s ease, border 0.2s ease;
+    }
+    #sidebar.collapsed {
+      width: 0;
+      padding: 0;
+      border-right-width: 0;
     }
 
     .tree-item {
@@ -111,6 +131,7 @@
 </head>
 <body>
   <header>
+    <button id="sidebar-toggle" title="Toggle sidebar" aria-label="Toggle sidebar">☰</button>
     <h1>__TITLE__</h1>
     <a href="__COLLECTION_URL__" target="_blank">collection.json ↗</a>
   </header>
@@ -133,6 +154,10 @@
     const sidebar = document.getElementById('sidebar');
     const viewerPane = document.getElementById('viewer-pane');
     let activeItem = null;
+
+    document.getElementById('sidebar-toggle').addEventListener('click', () => {
+      sidebar.classList.toggle('collapsed');
+    });
 
     async function fetchJSON(url) {
       const res = await fetch(url);
@@ -212,6 +237,69 @@
       }
     }
 
+    // Inject CSS overrides and an HTML-tooltip patcher into the viewer's shadow root.
+    function patchViewerShadow(viewer) {
+      const sr = viewer.shadowRoot;
+      if (!sr) return;
+
+      // Override styles inside the shadow root:
+      // 1. Give the right-side panel a z-index above the fixed annotation tooltip (z-50 = 50).
+      // 2. Replace the primary-coloured tooltip background with a readable dark one.
+      // 3. Hide the CSS ::before pseudo-element so the .tooltip-content div takes over.
+      const style = document.createElement('style');
+      style.textContent = `
+        .z-20 { z-index: 60 !important; }
+
+        .tooltip-open[data-tip]:before,
+        .tooltip-open:after { display: none !important; }
+
+        .tooltip-open > .tooltip-content {
+          background: rgba(15, 15, 15, 0.92) !important;
+          color: #f0f0f0 !important;
+          text-align: left !important;
+          max-width: 28rem !important;
+          padding: 6px 10px !important;
+        }
+
+        .tooltip-open > .tooltip-content * { color: inherit; }
+      `;
+      sr.appendChild(style);
+
+      // Convert data-tip HTML into a real .tooltip-content child element so that
+      // HTML markup in annotation bodies renders properly instead of as raw text.
+      function applyTooltip(tooltipEl) {
+        const html = tooltipEl.getAttribute('data-tip');
+        if (!html) return;
+        let content = tooltipEl.querySelector('.tooltip-content');
+        if (!content) {
+          content = document.createElement('div');
+          content.className = 'tooltip-content';
+          tooltipEl.appendChild(content);
+        }
+        if (content.innerHTML !== html) content.innerHTML = html;
+      }
+
+      const obs = new MutationObserver((mutations) => {
+        for (const m of mutations) {
+          // Attribute change on an existing tooltip element
+          if (m.type === 'attributes' && m.attributeName === 'data-tip' && m.target.classList.contains('tooltip')) {
+            applyTooltip(m.target);
+          }
+          // New nodes added (tooltip appearing)
+          if (m.type === 'childList') {
+            for (const node of m.addedNodes) {
+              if (node.nodeType !== 1) continue;
+              if (node.classList && node.classList.contains('tooltip') && node.hasAttribute('data-tip')) {
+                applyTooltip(node);
+              }
+            }
+          }
+        }
+      });
+
+      obs.observe(sr, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-tip'] });
+    }
+
     function openManifest(manifestUrl, itemEl) {
       if (activeItem) activeItem.classList.remove('active');
       activeItem = itemEl;
@@ -221,6 +309,12 @@
       const viewer = document.createElement('triiiceratops-viewer');
       viewer.setAttribute('manifest-id', manifestUrl);
       viewerPane.appendChild(viewer);
+
+      // Show annotations panel open by default.
+      viewer.config = { annotations: { open: true } };
+
+      // Patch shadow DOM after Svelte mounts the component.
+      requestAnimationFrame(() => patchViewerShadow(viewer));
     }
 
     (async () => {
